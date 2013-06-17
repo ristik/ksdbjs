@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Guardtime KSI Web API | ksdbjs</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="stylesheet" type="text/css" href="media/css/restdown.css">
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+</head>
+<body>
+<div id="header">
+    <h1>Guardtime KSI Web API | ksdbjs Documentation</h1>
+</div>
+
+    <div id="sidebar">
+<ul>
+  <li><div><a href="#general-conventions">General conventions</a></div>
+  <ul>
+    <li><div><a href="#common-query-parameters">Common query parameters</a></div></li>
+    <li><div><a href="#header-fields">Header fields</a></div></li>
+    <li><div><a href="#http-status-codes">HTTP Status Codes</a></div></li>
+    <li><div><a href="#common-data-fields">Common Data Fields</a></div></li>
+  </ul></li>
+  <li><div><a href="#installation">Installation</a></div>
+  <ul>
+    <li><div><a href="#configuration">Configuration</a></div></li>
+  </ul></li>
+  <li><div><a href="#api-docs">API Docs</a></div>
+  <ul>
+    <li><div><a href="#Sign"><span class="method both"><span class="name">Sign</span> <span class="endpoint">(<span class="verb">PUT</span> <span class="path">/ksdb/:hash</span>)</span></a></div></li>
+    <li><div><a href="#Verify"><span class="method both"><span class="name">Verify</span> <span class="endpoint">(<span class="verb">GET</span> <span class="path">/ksdb/:hash</span>)</span></a></div></li>
+    <li><div><a href="#Download"><span class="method both"><span class="name">Download</span> <span class="endpoint">(<span class="verb">GET</span> <span class="path">/ksdb/:hash/download</span>)</span></a></div></li>
+  </ul></li>
+  <li><div><a href="#examples">Examples</a></div>
+  <ul>
+    <li><div><a href="#command-line-with-curl">Command-line with curl</a></div></li>
+    <li><div><a href="#nodejs-client-examples">node.js client examples</a></div></li>
+  </ul></li>
+</ul>
+
+    </div>
+    <div id="content">
+
+<h1>KSDB is Keyless Signature Database with RESTish Web Interface</h1>
+<div class="intro">
+
+
+<p><em>This software provides RESTish web interface for accessing the <a href="http://www.openksi.org">KSI</a>
+<a href="http://www.guardtime.com/signatures/technology-overview">service</a>.</em></p>
+
+<h3>Usual workflow:</h3>
+
+<p><em>Signing:</em></p>
+
+<ol>
+<li>You have some data which needs long-term integrity guarantee</li>
+<li>Hash this data using some well-recognized cryptographic hash algorithm</li>
+<li>Call KSDBJS web API: <code>PUT server/ksdbjs/:hashvalueinhex</code></li>
+<li>ksdbjs signs the hash by creating KSI signature token</li>
+<li>ksdbjs stores this token into database. Data hash is access key.</li>
+</ol>
+
+<p><em>Verification:</em> </p>
+
+<ol>
+<li>Hash the data with exactly same hash algorighm used for signing</li>
+<li>Call KSDBJS web API: <code>GET server/ksdbjs/:hashvalueinhex</code></li>
+<li>ksdbjs fetches the signature token from database</li>
+<li>ksdbjs verifies signature token</li>
+<li>ksdbjs returns result and signature metadata</li>
+<li>Observe returned value and process the metadata.</li>
+</ol>
+
+<p><em>Archiving, independent verification:</em></p>
+
+<ol>
+<li>Hash the data with exactly same hash algorighm used for signing</li>
+<li>Call KSDBJS web API: <code>GET server/ksdbjs/:hashvalueinhex/download</code></li>
+<li>Check errors, process metadata and store returned signature token</li>
+<li>Data + signature token may be verified by third parties, using other tools etc.</li>
+</ol>
+
+
+</div>
+<h1 id="general-conventions">General conventions</h1>
+
+<h2 id="common-query-parameters">Common query parameters</h2>
+
+<p><code>algorithm</code>  - Identifies cryptographic hash algorithm used for hashing of the data.</p>
+
+<p>List of allowed hash algorithms depends on underlying infrastructure and is currently fixed to
+<code>sha1</code>, <code>ripemd160</code>, <code>sha256</code> (default), <code>sha224</code>, <code>sha384</code> and <code>sha512</code>.</p>
+
+<h2 id="header-fields">Header fields</h2>
+
+<p><code>Accept:</code> used for returned content type negotation, we support <code>application/json</code> (default) and
+<code>application/xml</code>.</p>
+
+<h2 id="http-status-codes">HTTP Status Codes</h2>
+
+<table>
+<tbody>
+<tr><td><strong>HTTP code</strong></td><td><strong>Description</strong></td></tr>
+<tr><td>200</td><td>OK. Signature is already created for this hash value. Oldest signature token prevails.</td></tr>
+<tr><td>201</td><td>Created. Signature token is created and stored successfully.</td></tr>
+<tr><td>202</td><td>Accepted. Query is accepted and being processed asynchronously. Success is not guaranteed.</td></tr>
+<tr><td>404</td><td>Not found. Unknown hash value - data is not signed or has been tampered with. Endpoint not found.</td></tr>
+<tr><td>407</td><td>Not acceptable. We do not serve required content type, etc.</td></tr>
+<tr><td>409</td><td>Invalid Argument. Broken hash value, untrusted hash algorithm etc.</td></tr>
+<tr><td>4xx</td><td>Problem with parameters, please fix the query before trying again.</td></tr>
+<tr><td>5xx</td><td>Internal service error. Failover or try again later.</td></tr>
+</tbody>
+</table>
+
+<h2 id="common-data-fields">Common Data Fields</h2>
+
+<p>Per customer request there are two redundant data fields:</p>
+
+<table>
+<tbody>
+<tr><td>res_code</td><td>Error code. 0 if all OK; HTTP error code otherwise.</td></tr>
+<tr><td>res_message</td><td>Error or success message.</td></tr>
+</tbody>
+</table>
+
+<h1 id="installation">Installation</h1>
+
+<ol>
+<li>Install and start MongoDB</li>
+<li>Download and extract <code>ksdbjs</code></li>
+<li><code>npm install .</code></li>
+<li>Adjust <code>config.json</code></li>
+<li><code>node main.js</code></li>
+<li>Use reverse proxy for security and high availability, if necessary.</li>
+<li>Set up service, for example using <a href="https://github.com/nodejitsu/forever">forever</a> and 
+init.d/upstart/SMF script.</li>
+</ol>
+
+<h2 id="configuration">Configuration</h2>
+
+<p>There's config.json file in json format:</p>
+
+<table>
+<tbody>
+<tr><td><strong>Field</strong></td><td><strong>Default</strong></td><td><strong>Purpose</strong></td></tr>
+<tr><td>signeruri</td><td>http://stamper.guardtime.net/gt-signingservice</td><td>Guardtime / OpenKSI signing service URI</td></tr>
+<tr><td>verifieruri</td><td>http://verifier.guardtime.net/gt-extendingservice</td><td>Guardtime / OpenKSI verification service URI</td></tr>
+<tr><td>timezone</td><td>n/a</td><td>Overrides timezone in returned date values. Note that 'correct' json uses UTC.</td></tr>
+<tr><td>appmod</td><td>''</td><td>Modifies functionality for specific use case. Do not use.</td></tr>
+<tr><td>databasehost</td><td>localhost</td><td>MongoDB database hostname</td></tr>
+<tr><td>databaseport</td><td>27017</td><td>MongoDB database port</td></tr>
+<tr><td>loglevel</td><td>debug</td><td>Logging verbosity. Default is quite chatty! <a href="https://github.com/trentm/node-bunyan#levels">full list</a></td></tr>
+</tbody>
+</table>
+
+<p>Logs in json format go to stdout and may be pretty-printed using <code>bunyan</code>.</p>
+
+<h1 id="api-docs">API Docs</h1>
+
+<h2 id="Sign"><span class="method both"><span class="name">Sign</span> <span class="endpoint">(<span class="verb">PUT</span> <span class="path">/ksdb/:hash</span>)</span></h2>
+
+<p>Signs data hash. Hashing must happen elsewhere. Default hash algorithm is <code>SHA2-256</code>, it could
+be changed using query parameter <code>algorithm</code>. </p>
+
+<p>Signing happens synchronously, this means that response is returned only after the signature token is
+successfully created and stored. If this is not necessary then query parameter <code>async</code> enables
+asynchronous processing, this means that service returns immediately after the request is accepted,
+but its success is not guaranteed.
+Note that because of the way KSI signing works the synchronous signing takes 1..2 seconds to complete.</p>
+
+<p>Example: </p>
+
+<pre><code>PUT /ksdb/bd5aff38eb821b33c3528771eed75cc01f86ead7?algorithm=sha1&amp;async=true
+</code></pre>
+
+<h2 id="Verify"><span class="method both"><span class="name">Verify</span> <span class="endpoint">(<span class="verb">GET</span> <span class="path">/ksdb/:hash</span>)</span></h2>
+
+<p>Verifies the stored signature, identified by data hash. Note that a data object must be hashed using
+exactly the same algorithm when signed and verfied.</p>
+
+<p>Returned data on successful verification (copied from [node-guardtime]
+(https://github.com/ristik/node-guardtime/blob/master/node-guardtime-api.markdown)):</p>
+
+<ul>
+<li><p><code>verification_status</code>: flags about the checks performed, see <code>resultflags</code> above.</p></li>
+<li><p><code>location_id</code>: Numeric ID of issuing server (gateway), <em>trusted</em>.</p></li>
+<li><p><code>location_name</code>: Human-readable ID of issuing server (gateway), <em>trusted</em> as it is set by upstream infrastructure and
+cannot be tampered by gateway operatur. Formatted as ':' - separated hierarchical list of entities; UTF-8 encoding.</p></li>
+<li><p><code>registered_time</code>: Date object encapsulating <em>trusted</em> signing time/date.</p></li>
+<li><p><code>policy</code>: Legally binding and audited signing policy OID.</p></li>
+<li><p><code>hash_value</code>, <code>hash_algorithm</code>: Hash value of original signed doc, and name of used hash algorithm.</p></li>
+<li><p><code>issuer_name</code>: Name of issuing server (gateway). May be changed by the gateway itself, take it as a 'label'.</p></li>
+<li><p><code>public_key_fingerprint</code>: (present if 'PUBLIC_KEY_SIGNATURE_PRESENT'). Fingerprint of certificate used to sign the token; matches
+with whitelist published in _publications file_. Will be superceded with newspaper publication when it becomes available.</p></li>
+<li><p><code>publication_string</code>: (this and following fields present if 'PUBLICATION_CHECKED'). Publication value used to validate the token,
+matches with newspaper publication value.</p></li>
+<li><p><code>publication_time</code>, <code>publication_identifier</code>: Date object which encapsulates publishing time; _identifier_ is same encoded as
+unix _time_t_ value.</p></li>
+<li><p><code>pub_reference_list</code>: Human-readable pointers to trusted media which could be used to validate the _publication string_.
+Encoded as array of UTF-8 strings.</p></li>
+</ul>
+
+<p>Note that depending on data availability some fields may be not present. See examples below.</p>
+
+<h2 id="Download"><span class="method both"><span class="name">Download</span> <span class="endpoint">(<span class="verb">GET</span> <span class="path">/ksdb/:hash/download</span>)</span></h2>
+
+<p>Returns signature token, always verified before returning any data. If accepted content encoding is 
+<code>application/octet-stream</code> then returns binary token, and minimal metadata fields (X-GuardTime-at, X-GuardTime-id)
+as header values. Same happens on <code>text/html</code> to facilitate direct download using web browser.
+Otherwise (json, xml) returns base64-encoded signature token as data field 'token' and signature verification
+results as field 'properties'. See examples below.</p>
+
+<h1 id="examples">Examples</h1>
+
+<h2 id="command-line-with-curl">Command-line with curl</h2>
+
+<h3>Signing a hash</h3>
+
+<pre class="shell"><code>curl -i -X PUT  'http://localhost:8080/ksdb/253faf640b3098d337f92ad54a5209370265600fb36b18ab60fe1d5eeff1fae3'
+HTTP/1.1 201 Created
+Content-Type: application/json
+Content-Length: 59
+Date: Fri, 10 May 2013 15:22:05 GMT
+Connection: keep-alive
+
+{ 
+  "res_code":0,
+  "res_message":"Signature created and stored"
+}
+</code></pre>
+
+<p>Data must be hashed elsewhere. Example with <code>shasum</code> utility:</p>
+
+<pre class="shell"><code>curl -X PUT  http://localhost:8080/ksdb/`shasum filetobesigned.ext | cut -d ' ' -f 1`\?algorithm=sha1
+{
+  "res_code":0,
+  "res_message":"Signature created and stored"
+}
+</code></pre>
+
+<h3>Verify a recently signed hash, require XML response:</h3>
+
+<pre class="shell"><code>curl -i -H 'Accept: application/xml' -X GET 'http://localhost:8080/ksdb/253faf640b3098d337f92ad54a5209370265600fb36b18ab60fe1d5eeff1fae3'
+HTTP/1.1 200 OK
+Content-Type: application/xml
+Content-Length: 654
+Date: Fri, 10 May 2013 16:23:42 GMT
+Connection: keep-alive
+
+&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;ksdb_rsp&gt;
+  &lt;verification_status&gt;49&lt;/verification_status&gt;
+  &lt;location_id&gt;3.1.2.199&lt;/location_id&gt;
+  &lt;location_name&gt;GT : GT : public&lt;/location_name&gt;
+  &lt;registered_time&gt;2013-05-10T15:22:04.000Z&lt;/registered_time&gt;
+  &lt;policy&gt;1.3.6.1.4.1.27868.2.1.1&lt;/policy&gt;
+  &lt;hash_algorithm&gt;SHA256&lt;/hash_algorithm&gt;
+  &lt;hash_value&gt;25:3f:af:64:0b:30:98:d3:37:f9:2a:d5:4a:52:09:37:02:65:60:0f:b3:6b:18:ab:60:fe:1d:5e:ef:f1:fa:e3&lt;/hash_value&gt;
+  &lt;issuer_name&gt;DNS:stamper.us.guardtime.net&lt;/issuer_name&gt;
+  &lt;public_key_fingerprint&gt;AAAAAA-CQQGHH-6AJBVW-6ORDF7-2CQW6N-HZ7Q4R-5C52KW-OND7ZF-PHW72R-MFQTYM-AF5C37-TH6VRZ&lt;/public_key_fingerprint&gt;
+  &lt;res_code&gt;0&lt;/res_code&gt;
+&lt;/ksdb_rsp&gt;
+</code></pre>
+
+<h3>Verify an older hash, JSON response</h3>
+
+<pre class="shell"><code>curl -i -X GET 'http://localhost:8080/ksdb/0bdc9d2d256b3ee9daae347be6f4dc835a467ffe?algorithm=ripemd160'
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 688
+Date: Fri, 10 May 2013 16:20:28 GMT
+Connection: keep-alive
+
+{ 
+  "verification_status":50,
+  "location_id":"2.1.1.199",
+  "location_name":"GT : GT : public",
+  "registered_time":"2013-03-26T00:48:21.000Z",
+  "policy":"1.3.6.1.4.1.27868.2.1.1",
+  "hash_algorithm":"RIPEMD160",
+  "hash_value":"0b:dc:9d:2d:25:6b:3e:e9:da:ae:34:7b:e6:f4:dc:83:5a:46:7f:fe",
+  "issuer_name":"DNS:stamper1.ee.guardtime.net",
+  "publication_string":"AAAAAA-CRNNBQ-AAOYL7-M2LUOJ-N4FULO-PB2IJX-T2RDJP-7PSGUO-4XYX3J-ZBROE3-M65AFE-BA3OIZ",
+  "publication_identifier":1365984000,
+  "publication_time":"2013-04-15T00:00:00.000Z",
+  "pub_reference_list": [
+       "Äripäev, ISSN: 1406-2585, 18.04.2013",
+       "Financial Times, ISSN: 0307-1766, 2013-04-18",
+       "https://twitter.com/GuardTime/status/324877375009587201"],
+  "res_code":0
+}
+</code></pre>
+
+<h3>Download signature token (binary format):</h3>
+
+<pre class="shell"><code>curl -i -X GET -H 'Accept: application/octet-stream' 
+       'http://localhost:8080/ksdb/253faf..snip..1fae3/download'
+HTTP/1.1 200 OK
+Content-Disposition: attachment; filename=signaturetoken.gtts
+X-GuardTime-at: Fri, 10 May 2013 15:22:04 GMT
+X-GuardTime-id: GT : GT : public
+Content-Type: application/octet-stream
+Content-Length: 3423
+Date: Fri, 10 May 2013 15:48:32 GMT
+Connection: keep-alive
+
+...binary data stripped...
+</code></pre>
+
+<h3>Download signature token (xml):</h3>
+
+<pre class="shell"><code>curl -i -X GET -H 'Accept: application/xml'
+        'http://localhost:8080/ksdb/253fa....snip....fe1d5eeff1fae3/download'
+HTTP/1.1 200 OK
+Content-Type: application/xml
+Content-Length: 5266
+Date: Fri, 10 May 2013 15:51:51 GMT
+Connection: keep-alive
+
+&lt;?xml version="1.0" encoding="utf-8"?&gt;
+&lt;download_rsp&gt;
+  &lt;token&gt; 
+    &lt;!--- base64 encoded binary signature token stripped --&gt;
+  &lt;/token&gt;
+  &lt;properties&gt;
+    &lt;registered_time&gt;2013-05-10T15:22:04.000Z&lt;/registered_time&gt;
+    &lt;!--- other properties stripped --&gt;
+  &lt;/properties&gt;
+  &lt;res_code&gt;0&lt;/res_code&gt;
+&lt;/download_rsp&gt;
+</code></pre>
+
+<h2 id="nodejs-client-examples">node.js client examples</h2>
+
+<h3>Common initialization</h3>
+
+<pre><code>var restify = require('restify'),
+    crypto = require('crypto');
+
+var client = restify.createJsonClient({
+  url: 'http://localhost:8080',
+  version: '*'
+});
+
+var document = "This is a very important note";
+
+var hash = crypto.createHash('sha256').update(document).digest('hex');
+</code></pre>
+
+<h3>Sign a hash:</h3>
+
+<pre><code>client.put('/ksdb/' + hash, function(err, req, res, obj) {
+  if (err) throw  err;
+  console.log("Signing OK, HTTP code %d", res.statusCode);
+});
+</code></pre>
+
+<h3>Verify the document:</h3>
+
+<pre><code>// Assume that years have passed, verify our document again..
+var hash2 = crypto.createHash('sha256').update(document).digest('hex');
+
+client.get('/ksdb/' + hash2, function(err, req, res, obj) {
+  if (err) throw  err;
+  console.log("Signing OK, HTTP code: %d, signed at: %s", 
+      res.statusCode, obj.registered_time);
+});
+</code></pre>
+
+<h3>Download signature token and perform an independent verification using native API:</h3>
+
+<pre><code>var guardtime = require('guardtime');
+
+client.get('/ksdb/' + hash + '/download', function(err, req, res, obj) {
+  if (err) throw  err;
+  var sig = new guardtime.TimeSignature(
+       new Buffer(obj.token, 'base64'));
+  guardtime.verify(document, sig, function (err, res, properties) {
+    if (err) throw err;
+    console.log("Signature OK, signed by %s at %s.", 
+        properties.location_name, properties.registered_time);
+  })
+});
+</code></pre>
+
+    </div>
+<script type="text/javascript" charset="utf-8">
+$(function() {
+    var headerHeight = $("#header").height();
+
+    var sections = $("#content h1[id], #content h2[id]");
+    var sectionOffsets = [];
+    var slack = 100;  // Give the section scroll some slack (in pixels).
+    sections.each(function(elem) {
+        sectionOffsets.push($(this).offset().top - headerHeight - slack);
+    });
+
+    var currSectionIdx = -1;
+    function getSectionIdx(scrollDistance) {
+        if (scrollDistance < sectionOffsets[0]) {
+            return -1;
+        } else {
+            for (var id = sectionOffsets.length; id > 0; id--) {
+                if (scrollDistance > sectionOffsets[id - 1]) {
+                    return id - 1;
+                    break;
+                }
+            }
+        }
+    }
+
+    /** {{{ http://code.activestate.com/recipes/577787/ (r2) */
+    _slugify_strip_re = /[^\w\s-]/g;
+    _slugify_hyphenate_re = /[-\s]+/g;
+    function slugify(s) {
+      s = s.replace(_slugify_strip_re, '').trim().toLowerCase();
+      s = s.replace(_slugify_hyphenate_re, '-');
+      return s;
+    }
+    /** end of http://code.activestate.com/recipes/577787/ }}} */
+
+    /* See <https://github.com/trentm/restdown/issues/11>. */
+    function safechars(s) {
+      return s.replace(_slugify_strip_re, '');
+    }
+
+    $("#content").scroll(function() {
+        var scrollDistance = $("#content").scrollTop();
+        var sectionIdx = getSectionIdx(scrollDistance);
+
+        if (sectionIdx !== currSectionIdx) {
+            $("#sidebar li>div").removeClass("current");
+            currSectionIdx = sectionIdx;
+            if (currSectionIdx >= 0) {
+                var heading = $(sections[currSectionIdx]).text();
+                var possibleAnchors = [
+                    slugify(heading), // h1 or non-method h2
+                    heading.replace(/ /g, '-'), // h2 method, just name or just endpoint
+                    heading.slice(0, heading.lastIndexOf(' (')).trimRight().replace(/ /g, '-'), // h2 method, name and endpoint
+                ];
+                for (var i=0; i < possibleAnchors.length; i++) {
+                    var anchor = safechars(possibleAnchors[i]);
+                    try {
+                        $("#sidebar a[href=#" + anchor + "]").parent().addClass("current");
+                    } catch (e) {
+                        /* Ignore error if no such element. */
+                        console.log(e)
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+
+</body>
+</html>

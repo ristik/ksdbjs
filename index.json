@@ -1,0 +1,7 @@
+{
+  "endpoints": [
+    "PUT    /ksdb/:hash",
+    "GET    /ksdb/:hash",
+    "GET    /ksdb/:hash/download"
+  ]
+}
