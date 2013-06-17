@@ -5,7 +5,7 @@
 	"author": "Risto Laanoja <ristik@gmail.com>",
 	"homepage": "http://ristik.github.com/ksdbjs",
 	"license": "Apache License v2.0",
-	"main": "main.js"
+	"main": "main.js",
 	"dependencies": {
 		"restify": "*",
 		"bunyan": "*",
