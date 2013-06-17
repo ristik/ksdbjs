@@ -1,0 +1,343 @@
+---
+title: Guardtime KSI Web API | ksdbjs
+apisections: API Docs
+markdown2extras: wiki-tables, code-friendly
+---
+
+# KSDB is Keyless Signature Database with RESTish Web Interface
+
+
+*This software provides RESTish web interface for accessing the [KSI](http://www.openksi.org)
+[service](http://www.guardtime.com/signatures/technology-overview).*
+
+### Usual workflow:
+
+*Signing:*
+
+1. You have some data which needs long-term integrity guarantee
+2. Hash this data using some well-recognized cryptographic hash algorithm
+3. Call KSDBJS web API: `PUT server/ksdbjs/:hashvalueinhex`
+4. ksdbjs signs the hash by creating KSI signature token
+5. ksdbjs stores this token into database. Data hash is access key.
+
+*Verification:* 
+
+1. Hash the data with exactly same hash algorighm used for signing
+2. Call KSDBJS web API: `GET server/ksdbjs/:hashvalueinhex`
+3. ksdbjs fetches the signature token from database
+4. ksdbjs verifies signature token
+5. ksdbjs returns result and signature metadata
+3. Observe returned value and process the metadata.
+
+*Archiving, independent verification:*
+
+1. Hash the data with exactly same hash algorighm used for signing
+2. Call KSDBJS web API: `GET server/ksdbjs/:hashvalueinhex/download`
+3. Check errors, process metadata and store returned signature token
+4. Data + signature token may be verified by third parties, using other tools etc.
+
+
+
+# General conventions
+
+## Common query parameters
+
+`algorithm`  - Identifies cryptographic hash algorithm used for hashing of the data.
+
+List of allowed hash algorithms depends on underlying infrastructure and is currently fixed to
+`sha1`, `ripemd160`, `sha256` (default), `sha224`, `sha384` and `sha512`.
+
+## Header fields
+
+`Accept:` used for returned content type negotation, we support `application/json` (default) and
+`application/xml`.
+
+
+## HTTP Status Codes
+
+|| **HTTP code** ||  **Description**  ||
+|| 200 || OK. Signature is already created for this hash value. Oldest signature token prevails. ||
+|| 201 || Created. Signature token is created and stored successfully. ||
+|| 202 || Accepted. Query is accepted and being processed asynchronously. Success is not guaranteed. ||
+|| 404 || Not found. Unknown hash value - data is not signed or has been tampered with. Endpoint not found. ||
+|| 407 || Not acceptable. We do not serve required content type, etc. ||
+|| 409 || Invalid Argument. Broken hash value, untrusted hash algorithm etc. ||
+|| 4xx || Problem with parameters, please fix the query before trying again. ||
+|| 5xx || Internal service error. Failover or try again later. ||
+
+
+## Common Data Fields
+
+Per customer request there are two redundant data fields:
+
+|| res_code    || Error code. 0 if all OK; HTTP error code otherwise. ||
+|| res_message || Error or success message. ||
+
+
+# Installation
+
+1. Install and start MongoDB
+2. Download and extract `ksdbjs`
+3. `npm install .`
+4. Adjust `config.json`
+5. `node main.js`
+6. Use reverse proxy for security and high availability, if necessary.
+7. Set up service, for example using [forever](https://github.com/nodejitsu/forever) and 
+init.d/upstart/SMF script.
+
+
+## Configuration
+
+There's config.json file in json format:
+
+|| **Field**    || **Default** || **Purpose** ||
+|| signeruri    || http://stamper.guardtime.net/gt-signingservice || Guardtime / OpenKSI signing service URI ||
+|| verifieruri  || http://verifier.guardtime.net/gt-extendingservice || Guardtime / OpenKSI verification service URI ||
+|| timezone     || n/a || Overrides timezone in returned date values. Note that 'correct' json uses UTC. ||
+|| appmod       || '' || Modifies functionality for specific use case. Do not use. ||
+|| databasehost || localhost || MongoDB database hostname ||
+|| databaseport || 27017 || MongoDB database port ||
+|| loglevel     || debug || Logging verbosity. Default is quite chatty! [full list](https://github.com/trentm/node-bunyan#levels)||
+
+
+
+Logs in json format go to stdout and may be pretty-printed using `bunyan`.
+
+
+
+# API Docs
+
+## Sign (PUT /ksdb/:hash)
+
+Signs data hash. Hashing must happen elsewhere. Default hash algorithm is `SHA2-256`, it could
+be changed using query parameter `algorithm`. 
+
+Signing happens synchronously, this means that response is returned only after the signature token is
+successfully created and stored. If this is not necessary then query parameter `async` enables
+asynchronous processing, this means that service returns immediately after the request is accepted,
+but its success is not guaranteed.
+Note that because of the way KSI signing works the synchronous signing takes 1..2 seconds to complete.
+
+
+Example: 
+    
+    PUT /ksdb/bd5aff38eb821b33c3528771eed75cc01f86ead7?algorithm=sha1&async=true
+
+
+## Verify (GET /ksdb/:hash)
+
+Verifies the stored signature, identified by data hash. Note that a data object must be hashed using
+exactly the same algorithm when signed and verfied.
+
+Returned data on successful verification (copied from [node-guardtime]
+(https://github.com/ristik/node-guardtime/blob/master/node-guardtime-api.markdown)):
+
+  - `verification_status`: flags about the checks performed, see `resultflags` above.
+
+  - `location_id`: Numeric ID of issuing server (gateway), *trusted*.
+
+  - `location_name`: Human-readable ID of issuing server (gateway), *trusted* as it is set by upstream infrastructure and
+cannot be tampered by gateway operatur. Formatted as ':' - separated hierarchical list of entities; UTF-8 encoding.
+
+  - `registered_time`: Date object encapsulating *trusted* signing time/date.
+
+  - `policy`: Legally binding and audited signing policy OID.
+
+  - `hash_value`, `hash_algorithm`: Hash value of original signed doc, and name of used hash algorithm.
+
+  - `issuer_name`: Name of issuing server (gateway). May be changed by the gateway itself, take it as a 'label'.
+
+  - `public_key_fingerprint`: (present if 'PUBLIC_KEY_SIGNATURE_PRESENT'). Fingerprint of certificate used to sign the token; matches
+with whitelist published in _publications file_. Will be superceded with newspaper publication when it becomes available.
+
+  - `publication_string`: (this and following fields present if 'PUBLICATION_CHECKED'). Publication value used to validate the token,
+matches with newspaper publication value.
+
+  - `publication_time`, `publication_identifier`: Date object which encapsulates publishing time; _identifier_ is same encoded as
+unix _time_t_ value.
+
+  - `pub_reference_list`: Human-readable pointers to trusted media which could be used to validate the _publication string_.
+Encoded as array of UTF-8 strings.
+
+Note that depending on data availability some fields may be not present. See examples below.
+
+
+
+## Download (GET /ksdb/:hash/download)
+
+Returns signature token, always verified before returning any data. If accepted content encoding is 
+`application/octet-stream` then returns binary token, and minimal metadata fields (X-GuardTime-at, X-GuardTime-id)
+as header values. Same happens on `text/html` to facilitate direct download using web browser.
+Otherwise (json, xml) returns base64-encoded signature token as data field 'token' and signature verification
+results as field 'properties'. See examples below.
+
+
+
+# Examples
+
+## Command-line with curl
+
+### Signing a hash
+
+	$ curl -i -X PUT  'http://localhost:8080/ksdb/253faf640b3098d337f92ad54a5209370265600fb36b18ab60fe1d5eeff1fae3'
+	HTTP/1.1 201 Created
+	Content-Type: application/json
+	Content-Length: 59
+	Date: Fri, 10 May 2013 15:22:05 GMT
+	Connection: keep-alive
+
+	{ 
+	  "res_code":0,
+	  "res_message":"Signature created and stored"
+	}
+
+Data must be hashed elsewhere. Example with `shasum` utility:
+
+	$ curl -X PUT  http://localhost:8080/ksdb/`shasum filetobesigned.ext | cut -d ' ' -f 1`\?algorithm=sha1
+	{
+	  "res_code":0,
+	  "res_message":"Signature created and stored"
+	}
+
+
+### Verify a recently signed hash, require XML response:
+
+	$ curl -i -H 'Accept: application/xml' -X GET 'http://localhost:8080/ksdb/253faf640b3098d337f92ad54a5209370265600fb36b18ab60fe1d5eeff1fae3'
+	HTTP/1.1 200 OK
+	Content-Type: application/xml
+	Content-Length: 654
+	Date: Fri, 10 May 2013 16:23:42 GMT
+	Connection: keep-alive
+
+	<?xml version="1.0" encoding="utf-8"?>
+	<ksdb_rsp>
+	  <verification_status>49</verification_status>
+	  <location_id>3.1.2.199</location_id>
+	  <location_name>GT : GT : public</location_name>
+	  <registered_time>2013-05-10T15:22:04.000Z</registered_time>
+	  <policy>1.3.6.1.4.1.27868.2.1.1</policy>
+	  <hash_algorithm>SHA256</hash_algorithm>
+	  <hash_value>25:3f:af:64:0b:30:98:d3:37:f9:2a:d5:4a:52:09:37:02:65:60:0f:b3:6b:18:ab:60:fe:1d:5e:ef:f1:fa:e3</hash_value>
+	  <issuer_name>DNS:stamper.us.guardtime.net</issuer_name>
+	  <public_key_fingerprint>AAAAAA-CQQGHH-6AJBVW-6ORDF7-2CQW6N-HZ7Q4R-5C52KW-OND7ZF-PHW72R-MFQTYM-AF5C37-TH6VRZ</public_key_fingerprint>
+	  <res_code>0</res_code>
+	</ksdb_rsp>
+
+
+### Verify an older hash, JSON response
+
+	$ curl -i -X GET 'http://localhost:8080/ksdb/0bdc9d2d256b3ee9daae347be6f4dc835a467ffe?algorithm=ripemd160'
+	HTTP/1.1 200 OK
+	Content-Type: application/json
+	Content-Length: 688
+	Date: Fri, 10 May 2013 16:20:28 GMT
+	Connection: keep-alive
+
+	{ 
+	  "verification_status":50,
+	  "location_id":"2.1.1.199",
+	  "location_name":"GT : GT : public",
+	  "registered_time":"2013-03-26T00:48:21.000Z",
+	  "policy":"1.3.6.1.4.1.27868.2.1.1",
+	  "hash_algorithm":"RIPEMD160",
+	  "hash_value":"0b:dc:9d:2d:25:6b:3e:e9:da:ae:34:7b:e6:f4:dc:83:5a:46:7f:fe",
+	  "issuer_name":"DNS:stamper1.ee.guardtime.net",
+	  "publication_string":"AAAAAA-CRNNBQ-AAOYL7-M2LUOJ-N4FULO-PB2IJX-T2RDJP-7PSGUO-4XYX3J-ZBROE3-M65AFE-BA3OIZ",
+	  "publication_identifier":1365984000,
+	  "publication_time":"2013-04-15T00:00:00.000Z",
+	  "pub_reference_list": [
+	       "Äripäev, ISSN: 1406-2585, 18.04.2013",
+	       "Financial Times, ISSN: 0307-1766, 2013-04-18",
+	       "https://twitter.com/GuardTime/status/324877375009587201"],
+	  "res_code":0
+	}
+
+
+### Download signature token (binary format):
+
+	$ curl -i -X GET -H 'Accept: application/octet-stream' 
+	       'http://localhost:8080/ksdb/253faf..snip..1fae3/download'
+	HTTP/1.1 200 OK
+	Content-Disposition: attachment; filename=signaturetoken.gtts
+	X-GuardTime-at: Fri, 10 May 2013 15:22:04 GMT
+	X-GuardTime-id: GT : GT : public
+	Content-Type: application/octet-stream
+	Content-Length: 3423
+	Date: Fri, 10 May 2013 15:48:32 GMT
+	Connection: keep-alive
+
+	...binary data stripped...
+
+
+### Download signature token (xml):
+
+	$ curl -i -X GET -H 'Accept: application/xml'
+	        'http://localhost:8080/ksdb/253fa....snip....fe1d5eeff1fae3/download'
+	HTTP/1.1 200 OK
+	Content-Type: application/xml
+	Content-Length: 5266
+	Date: Fri, 10 May 2013 15:51:51 GMT
+	Connection: keep-alive
+
+	<?xml version="1.0" encoding="utf-8"?>
+	<download_rsp>
+	  <token> 
+	    <!--- base64 encoded binary signature token stripped -->
+	  </token>
+	  <properties>
+	    <registered_time>2013-05-10T15:22:04.000Z</registered_time>
+	    <!--- other properties stripped -->
+	  </properties>
+	  <res_code>0</res_code>
+	</download_rsp>
+
+
+## node.js client examples
+
+### Common initialization
+
+	var restify = require('restify'),
+	    crypto = require('crypto');
+
+	var client = restify.createJsonClient({
+	  url: 'http://localhost:8080',
+	  version: '*'
+	});
+
+	var document = "This is a very important note";
+
+	var hash = crypto.createHash('sha256').update(document).digest('hex');
+
+### Sign a hash: 
+
+	client.put('/ksdb/' + hash, function(err, req, res, obj) {
+	  if (err) throw  err;
+	  console.log("Signing OK, HTTP code %d", res.statusCode);
+	});
+
+### Verify the document:
+
+	// Assume that years have passed, verify our document again..
+	var hash2 = crypto.createHash('sha256').update(document).digest('hex');
+
+	client.get('/ksdb/' + hash2, function(err, req, res, obj) {
+	  if (err) throw  err;
+	  console.log("Signing OK, HTTP code: %d, signed at: %s", 
+	      res.statusCode, obj.registered_time);
+	});
+
+### Download signature token and perform an independent verification using native API:
+
+	var guardtime = require('guardtime');
+
+	client.get('/ksdb/' + hash + '/download', function(err, req, res, obj) {
+	  if (err) throw  err;
+	  var sig = new guardtime.TimeSignature(
+	       new Buffer(obj.token, 'base64'));
+	  guardtime.verify(document, sig, function (err, res, properties) {
+	    if (err) throw err;
+	    console.log("Signature OK, signed by %s at %s.", 
+	        properties.location_name, properties.registered_time);
+	  })
+	});
+
