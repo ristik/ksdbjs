@@ -5,9 +5,13 @@ var mongo = require('mongodb'),
 var server, Server = mongo.Server,
     db, Db = mongo.Db;
 
+var inputParams;
+
 exports.init = function (conf, logger) {
   gt.conf({signeruri:   conf.signeruri,
            verifieruri: conf.verifieruri});
+
+  inputParams = conf.inputParams || {};
 
   server = new Server(conf.databasehost, conf.databaseport, {auto_reconnect: true});
   db = new Db('ksdbjs', server, {safe: true});
@@ -104,6 +108,13 @@ exports.sign = function (req, res, next) {
   if (!hash)
     return next(new restify.InvalidArgumentError("Missing parameter 'hash'"));
 
+  // Check if param is required and if it exists
+  for (var key in inputParams) {
+      if (inputParams[key]['required'] && !req.query[key]) {
+          return next(new restify.InvalidArgumentError("Missing parameter '" + key + "'"));
+      }
+  }
+
   // validate args early
   var hashbuf;
   try {
@@ -136,12 +147,20 @@ exports.sign = function (req, res, next) {
           return next(err);
         }
 
-        collection.insert({ // '_id': new mongo.ObjectID(hash.substr(0, 24)),
-                         'hash': hash,
-                         'alg': algorithm,
-                         'inserted': new Date(),
-                         'sig': new mongo.Binary(sig.getContent())
-                     }, {safe:true}, function(err, result) {
+
+        var storeObject = {
+            // '_id': new mongo.ObjectID(hash.substr(0, 24)),
+            'hash': hash,
+            'alg': algorithm,
+            'inserted': new Date(),
+            'sig': new mongo.Binary(sig.getContent())
+        };
+
+        for (var key in inputParams) {
+          storeObject[inputParams[key]['databaseField']] = req.query[key] || inputParams[key]['default'];
+        }
+
+        collection.insert(storeObject, {safe:true}, function(err, result) {
           if (err) {
             err.message = 'Error saving hash: ' + err.message;
             return next(err);
