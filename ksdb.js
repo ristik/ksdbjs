@@ -174,3 +174,49 @@ exports.sign = function (req, res, next) {
     });
   });
 };
+
+exports.param = function (req, res, next) {
+  var hash = req.params.hash;
+
+  if (req.header('Accept').match(/octet-stream/i))
+    return next(new restify.NotAcceptableError('This service does not serve application/octet-stream'));
+
+  // validate args early
+  try {
+    var hashbuf = new Buffer(hash, 'hex');
+  } catch(e) {
+    return next(new restify.InvalidArgumentError("Invalid hex 'hash'"));
+  }
+
+
+  db.collection('ksdbjs', function(err, collection) {
+    collection.findOne({'hash': hash}, function(err, item) {
+      if (err)
+        return next(err);
+
+      if (item === null) {
+        return next(new restify.ResourceNotFoundError('Unknown hash'));
+      }
+
+      var props = {};
+      var propsCount = 0;
+      for (var key in inputParams) {
+        if (inputParams[key]['retrievable']) {
+          if (!item[inputParams[key]['databaseField']]) {
+            return next(new restify.ResourceNotFoundError("Param '" + key + "' missing for hash"));
+          }
+
+          props[key] = item[inputParams[key]['databaseField']];
+          propsCount++;
+        }
+      }
+
+      if (propsCount == 0) {
+        return next(new restify.InvalidArgumentError("No parameters defined!"));
+      }
+
+      res.send(props);
+      return next();
+    });
+  });
+}

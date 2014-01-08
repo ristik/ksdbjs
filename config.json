@@ -7,10 +7,12 @@
 	"databasehost": "localhost",
 	"databaseport": 27017,
 	"loglevel":    "debug",
-    "inputParams": {
-        "client": {
-            "required": false,
-            "databaseField": "ClientName",
-            "default": null}
+  "inputParams": {
+    "client": {
+      "required": false,
+      "databaseField": "ClientName",
+      "default": null,
+      "retrievable": true
     }
+  }
 }
