@@ -68,6 +68,7 @@ if (conf.apimod === 'ct') {
   server.get('/ksdb/download', ksdb.download);
   server.get('/ksdb/verify',   ksdb.verify);
   server.get('/ksdb/create',   ksdb.sign);
+  server.get('/ksdb/param', ksdb.param);
 
   var dummyhandler = function (req, res, next) {
     res.setHeader('content-type', 'application/xml');
@@ -81,6 +82,7 @@ if (conf.apimod === 'ct') {
 
 } else {
   // more 'restful' interface for gereral consumption
+  server.get('/ksdb/:hash/param',  ksdb.param);
   server.get('/ksdb/:hash/download',  ksdb.download);
   server.get('/ksdb/:hash', ksdb.verify);
   server.put('/ksdb/:hash', ksdb.sign);
