@@ -158,6 +158,7 @@ exports.sign = function (req, res, next) {
 
         for (var key in inputParams) {
           storeObject[inputParams[key]['databaseField']] = req.query[key] || inputParams[key]['default'];
+          storeObject[inputParams[key]['databaseField']] = storeObject[inputParams[key]['databaseField']].replace('$', '\uff04').replace('.', '\uff0e');
         }
 
         collection.insert(storeObject, {safe:true}, function(err, result) {
