@@ -2,12 +2,13 @@
   "__this": "is a comment, remove underscores to get actual config parameter name",
   "signeruri":   "http://stamper.guardtime.net/gt-signingservice",
   "verifieruri": "http://verifier.guardtime.net/gt-extendingservice",
-  "__timezone":    "Asia/Shanghai",
-  "__appmod"     : "ct",
+  "__timezonJepe":    "Asia/Shanghai",
+  "__apimod": "ct",
   "databasehost": "localhost",
   "databaseport": 27017,
   "loglevel":    "debug",
   "listenport": 8080,
+  "baseurl": "/ksdb",
   "inputParams": {
     "client": {
       "required": false,

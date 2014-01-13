@@ -94,7 +94,7 @@ There's config.json file in json format:
 || signeruri    || http://stamper.guardtime.net/gt-signingservice || Guardtime / OpenKSI signing service URI ||
 || verifieruri  || http://verifier.guardtime.net/gt-extendingservice || Guardtime / OpenKSI verification service URI ||
 || timezone     || n/a || Overrides timezone in returned date values. Note that 'correct' json uses UTC. ||
-|| appmod       || '' || Modifies functionality for specific use case. Do not use. ||
+|| apimod       || '' || Modifies functionality for specific use case. Do not use. ||
 || databasehost || localhost || MongoDB database hostname ||
 || databaseport || 27017 || MongoDB database port ||
 || loglevel     || debug || Logging verbosity. Default is quite chatty! [full list](https://github.com/trentm/node-bunyan#levels)||
