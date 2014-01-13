@@ -1,12 +1,13 @@
 {
-	"__this": "is a comment, remove underscores to get actual config parameter name",
-	"signeruri":   "http://stamper.guardtime.net/gt-signingservice",
-	"verifieruri": "http://verifier.guardtime.net/gt-extendingservice",
-	"__timezone":    "Asia/Shanghai",
-	"__appmod"     : "ct",
-	"databasehost": "localhost",
-	"databaseport": 27017,
-	"loglevel":    "debug",
+  "__this": "is a comment, remove underscores to get actual config parameter name",
+  "signeruri":   "http://stamper.guardtime.net/gt-signingservice",
+  "verifieruri": "http://verifier.guardtime.net/gt-extendingservice",
+  "__timezone":    "Asia/Shanghai",
+  "__appmod"     : "ct",
+  "databasehost": "localhost",
+  "databaseport": 27017,
+  "loglevel":    "debug",
+  "listenport": 8080,
   "inputParams": {
     "client": {
       "required": false,

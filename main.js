@@ -88,6 +88,6 @@ if (conf.apimod === 'ct') {
   server.put('/ksdb/:hash', ksdb.sign);
 }
 
-server.listen(8080, function () {
+server.listen(conf.listenport, function () {
   logger.info('%s %s listening at %s', server.name, server.versions, server.url);
 });
