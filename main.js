@@ -92,5 +92,5 @@ if (conf.apimod === 'ct') {
 }
 
 server.listen(conf.listenport || 8080, function () {
-  logger.info('%s %s listening at %s', server.name, server.versions, server.url);
+  logger.info('%s %s listening at %s', server.name, server.versions, server.url + baseurl);
 });

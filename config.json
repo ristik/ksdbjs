@@ -2,7 +2,7 @@
   "__this": "is a comment, remove underscores to get actual config parameter name",
   "signeruri":   "http://stamper.guardtime.net/gt-signingservice",
   "verifieruri": "http://verifier.guardtime.net/gt-extendingservice",
-  "__timezonJepe":    "Asia/Shanghai",
+  "__timezone":    "Asia/Shanghai",
   "__apimod": "ct",
   "databasehost": "localhost",
   "databaseport": 27017,
