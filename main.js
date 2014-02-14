@@ -16,10 +16,6 @@ var conf = JSON.parse(fs.readFileSync(__dirname + '/config.json', encoding="utf8
 var baseurl = conf.baseurl || '/ksdb';
 
 
-if (conf.apimod) {
-  appver = appver + conf.apimod;
-}
-
 if (conf.timezone) {
   // override JSON.stringify formatting:
   process.env.TZ = conf.timezone;
@@ -92,5 +88,5 @@ if (conf.apimod === 'ct') {
 }
 
 server.listen(conf.listenport || 8080, function () {
-  logger.info('%s %s listening at %s', server.name, server.versions, server.url + baseurl);
+  logger.info('%s %s%s listening at %s', server.name, server.versions, conf.apimod || '', server.url + baseurl);
 });
