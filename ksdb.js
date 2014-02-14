@@ -147,7 +147,6 @@ exports.sign = function (req, res, next) {
           return next(err);
         }
 
-
         var storeObject = {
             // '_id': new mongo.ObjectID(hash.substr(0, 24)),
             'hash': hash,
@@ -157,8 +156,12 @@ exports.sign = function (req, res, next) {
         };
 
         for (var key in inputParams) {
-          storeObject[inputParams[key]['databaseField']] = req.query[key] || inputParams[key]['default'];
-          storeObject[inputParams[key]['databaseField']] = storeObject[inputParams[key]['databaseField']].replace('$', '\uff04').replace('.', '\uff0e');
+          var field = inputParams[key]['databaseField'];
+          if (field) {
+            storeObject[field] = req.query[key] || inputParams[key]['default'];
+            if (Object.prototype.toString.call(storeObject[field]) == '[object String]')
+              storeObject[field] = storeObject[field].replace('$', '\uff04').replace('.', '\uff0e');
+          }
         }
 
         collection.insert(storeObject, {safe:true}, function(err, result) {
@@ -204,7 +207,7 @@ exports.param = function (req, res, next) {
       for (var key in inputParams) {
         if (inputParams[key]['retrievable']) {
           if (!item[inputParams[key]['databaseField']]) {
-            return next(new restify.ResourceNotFoundError("Param '" + key + "' missing for hash"));
+            return next(new restify.InternalError("Param '" + key + "' missing for hash"));
           }
 
           props[key] = item[inputParams[key]['databaseField']];
@@ -212,7 +215,7 @@ exports.param = function (req, res, next) {
         }
       }
 
-      if (propsCount == 0) {
+      if (propsCount === 0) {
         return next(new restify.InvalidArgumentError("No parameters defined!"));
       }
 
@@ -220,4 +223,5 @@ exports.param = function (req, res, next) {
       return next();
     });
   });
-}
+};
+

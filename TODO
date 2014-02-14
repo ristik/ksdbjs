@@ -1,4 +1,3 @@
-- allow to store metadata with signature token (like app id)
 - list of newspaper publications in xml format gets concatenated. Want proper list.
 - retention policy
 - cleanup old signatures according to the retention policy
