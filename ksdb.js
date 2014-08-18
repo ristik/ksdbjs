@@ -37,7 +37,7 @@ exports.verify = function (req, res, next) {
   var hash = req.params.hash;  // needs restify.queryParser plugin 
   var algorithm = req.query.algorithm || 'sha256';
 
-  if (req.header('Accept').match(/octet-stream/i))
+  if (req.header('Accept', '').match(/octet-stream/i))
     return next(new restify.NotAcceptableError('This service does not serve application/octet-stream'));
 
   if (!hash)
@@ -83,7 +83,7 @@ exports.download = function (req, res, next) {
       gt.verifyHash(new Buffer(hash, 'hex'), algorithm, ts, function (err, flags, props) {
         if (err)
           return next(err);
-        if (req.header('Accept').match(/octet-stream|html/i)) { // html - direct token download with web browser
+        if (req.header('Accept', '').match(/octet-stream|html/i)) { // html - direct token download with web browser
           res.set('Content-Disposition', 'attachment; filename=signaturetoken.gtts' );
           res.set('X-GuardTime-at', props.registered_time);
           res.set('X-GuardTime-id', props.location_name);
@@ -182,7 +182,7 @@ exports.sign = function (req, res, next) {
 exports.param = function (req, res, next) {
   var hash = req.params.hash;
 
-  if (req.header('Accept').match(/octet-stream/i))
+  if (req.header('Accept', '').match(/octet-stream/i))
     return next(new restify.NotAcceptableError('This service does not serve application/octet-stream'));
 
   // validate args early

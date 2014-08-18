@@ -6,7 +6,6 @@ var parseroptions = { explicitArray: false,
     };
 var parser = new xml2js.Parser(parseroptions);
 
-
 exports = module.exports = function () {
   return function xml(req, res, next) {
 
@@ -15,7 +14,6 @@ exports = module.exports = function () {
 
     if (req.contentLength() === 0 && !req.isChunked())
       return next();
-    // console.log("xmlbodyparser1: " + req.getContentType());
 
     if (req.getContentType() !== 'application/xml' || !req.body)
       return next();
@@ -28,8 +26,7 @@ exports = module.exports = function () {
     // crap, hangs when xml is not terminated. bug in sax-js?
     if (req.body instanceof Buffer)
       req.body = req.body.toString();
-    //console.log("BLAAAAAA");
-    //console.log(req.body);
+
     parser.parseString(req.body, function (err, json) {
       if (err) {
         err.statusCode = 400;
