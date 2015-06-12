@@ -1,10 +1,10 @@
 {
 	"name": "ksdbjs",
 	"description": "Keyless Signature Database with RESTish Web Interface",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"author": "Risto Laanoja <ristik@gmail.com>",
 	"homepage": "http://ristik.github.com/ksdbjs",
-	"license": "Apache License v2.0",
+	"license": "Apache-2.0",
 	"main": "main.js",
 	"dependencies": {
 		"restify": "*",
@@ -15,7 +15,7 @@
 		"jsontoxml": "*"
 	},
 	"engines": {
-		"node": ">=0.6"
+		"node": ">=0.8"
 	},
 	"devDependencies": {}
 }
