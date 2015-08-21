@@ -94,7 +94,7 @@ There's config.json file in json format:
 || signeruri    || http://stamper.guardtime.net/gt-signingservice || Guardtime / OpenKSI signing service URI ||
 || verifieruri  || http://verifier.guardtime.net/gt-extendingservice || Guardtime / OpenKSI verification service URI ||
 || timezone     || n/a || Overrides timezone in returned date values. Note that 'correct' json uses UTC. ||
-|| appmod       || '' || Modifies functionality for specific use case. Do not use. ||
+|| apimod       || '' || Modifies functionality for specific use case. Do not use. ||
 || databasehost || localhost || MongoDB database hostname ||
 || databaseport || 27017 || MongoDB database port ||
 || loglevel     || debug || Logging verbosity. Default is quite chatty! [full list](https://github.com/trentm/node-bunyan#levels)||
@@ -117,6 +117,14 @@ successfully created and stored. If this is not necessary then query parameter `
 asynchronous processing, this means that service returns immediately after the request is accepted,
 but its success is not guaranteed.
 Note that because of the way KSI signing works the synchronous signing takes 1..2 seconds to complete.
+
+It is possible to store extra parameters with signing process. Allowed parameters are defined in config
+file under `inputParams` object. Each object has 4 values:
+
+`required`: Boolean type - if object is mandatory or not
+`databaseField`: String type - determines where current value is stored
+`default`: Any type - if value is not required, it can have default value to be stored
+`retrievable`: Boolean type - if value is retrievable or not
 
 
 Example: 
@@ -171,6 +179,11 @@ as header values. Same happens on `text/html` to facilitate direct download usin
 Otherwise (json, xml) returns base64-encoded signature token as data field 'token' and signature verification
 results as field 'properties'. See examples below.
 
+## Parameters (GET /ksdb/:hash/param)
+
+Returns data hash parameters stored with signature token. Data is in form of JSON and only retrievable values are returned. It is possible to
+set value retrievable in config file.
+`inputParams` - under that object are defined objects for system, each object has retrievable set true\false. See signing process
 
 
 # Examples
@@ -292,6 +305,38 @@ Data must be hashed elsewhere. Example with `shasum` utility:
 	</download_rsp>
 
 
+### Retrieve saved parameters, XML response:
+
+	$ curl -i -H 'Accept: application/xml' -X GET 'http://localhost:8080/ksdb/253faf640b3098d337f92ad54a5209370265600fb36b18ab60fe1d5eeff1fae3/param'
+	HTTP/1.1 200 OK
+	Content-Type: application/xml
+	Content-Length: 654
+	Date: Fri, 10 May 2013 16:23:42 GMT
+	Connection: keep-alive
+
+	<?xml version="1.0" encoding="utf-8"?>
+	<ksdb_rsp>
+	  <client>ClientName</client>
+	  <res_code>0</res_code>
+	  <res_message>OK</res_message>
+	</ksdb_rsp>
+
+
+### Retrieve saved parameters, JSON response
+
+	$ curl -i -X GET 'http://localhost:8080/ksdb/0bdc9d2d256b3ee9daae347be6f4dc835a467ffe/param'
+	HTTP/1.1 200 OK
+	Content-Type: application/json
+	Content-Length: 688
+	Date: Fri, 10 May 2013 16:20:28 GMT
+	Connection: keep-alive
+
+	{
+	  "client":"ClientName",
+	  "res_code":0,
+	  "res_message":"OK"
+	}
+
 ## node.js client examples
 
 ### Common initialization
@@ -340,4 +385,11 @@ Data must be hashed elsewhere. Example with `shasum` utility:
 	        properties.location_name, properties.registered_time);
 	  })
 	});
+
+### Get document parameters:
+
+    client.get('/ksdb/' + hash + '/param', function(err, req, res, obj) {
+      if (err) throw  err;
+      console.log("Information retrieved, clientname is ", obj.client);
+    });
 

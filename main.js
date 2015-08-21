@@ -13,9 +13,8 @@ var appver  = '0.3.1';
 
 var conf = JSON.parse(fs.readFileSync(__dirname + '/config.json', encoding="utf8")); // may throw
 
-if (conf.apimod) {
-  appver = appver + conf.apimod;
-}
+var baseurl = conf.baseurl || '/ksdb';
+
 
 if (conf.timezone) {
   // override JSON.stringify formatting:
@@ -65,9 +64,10 @@ server.on('after', function (req, res, route, error) {
 
 if (conf.apimod === 'ct') {
   // customer specific api
-  server.get('/ksdb/download', ksdb.download);
-  server.get('/ksdb/verify',   ksdb.verify);
-  server.get('/ksdb/create',   ksdb.sign);
+  server.get(baseurl + '/download', ksdb.download);
+  server.get(baseurl + '/verify',   ksdb.verify);
+  server.get(baseurl + '/create',   ksdb.sign);
+  server.get(baseurl + '/param', ksdb.param);
 
   var dummyhandler = function (req, res, next) {
     res.setHeader('content-type', 'application/xml');
@@ -81,11 +81,12 @@ if (conf.apimod === 'ct') {
 
 } else {
   // more 'restful' interface for gereral consumption
-  server.get('/ksdb/:hash/download',  ksdb.download);
-  server.get('/ksdb/:hash', ksdb.verify);
-  server.put('/ksdb/:hash', ksdb.sign);
+  server.get(baseurl + '/:hash/param',  ksdb.param);
+  server.get(baseurl + '/:hash/download',  ksdb.download);
+  server.get(baseurl + '/:hash', ksdb.verify);
+  server.put(baseurl + '/:hash', ksdb.sign);
 }
 
-server.listen(8080, function () {
-  logger.info('%s %s listening at %s', server.name, server.versions, server.url);
+server.listen(conf.listenport || 8080, function () {
+  logger.info('%s %s%s listening at %s', server.name, server.versions, conf.apimod || '', server.url + baseurl);
 });

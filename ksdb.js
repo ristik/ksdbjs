@@ -5,9 +5,13 @@ var mongo = require('mongodb'),
 var server, Server = mongo.Server,
     db, Db = mongo.Db;
 
+var inputParams;
+
 exports.init = function (conf, logger) {
   gt.conf({signeruri:   conf.signeruri,
            verifieruri: conf.verifieruri});
+
+  inputParams = conf.inputParams || {};
 
   server = new Server(conf.databasehost, conf.databaseport, {auto_reconnect: true});
   db = new Db('ksdbjs', server, {safe: true});
@@ -33,7 +37,7 @@ exports.verify = function (req, res, next) {
   var hash = req.params.hash;  // needs restify.queryParser plugin 
   var algorithm = req.query.algorithm || 'sha256';
 
-  if (req.header('Accept').match(/octet-stream/i))
+  if (req.header('Accept', '').match(/octet-stream/i))
     return next(new restify.NotAcceptableError('This service does not serve application/octet-stream'));
 
   if (!hash)
@@ -79,11 +83,12 @@ exports.download = function (req, res, next) {
       gt.verifyHash(new Buffer(hash, 'hex'), algorithm, ts, function (err, flags, props) {
         if (err)
           return next(err);
-        if (req.header('Accept').match(/octet-stream|html/i)) { // html - direct token download with web browser
+        if (req.header('Accept', '').match(/octet-stream|html/i)) { // html - direct token download with web browser
           res.set('Content-Disposition', 'attachment; filename=signaturetoken.gtts' );
           res.set('X-GuardTime-at', props.registered_time);
           res.set('X-GuardTime-id', props.location_name);
-          res.send(ts.getContent()); // todo: think about returning extended token
+          res.write(ts.getContent()); // todo: think about returning extended token
+          res.end();
           return next();
         } else {
           res.send({
@@ -103,6 +108,13 @@ exports.sign = function (req, res, next) {
 
   if (!hash)
     return next(new restify.InvalidArgumentError("Missing parameter 'hash'"));
+
+  // Check if param is required and if it exists
+  for (var key in inputParams) {
+      if (inputParams[key]['required'] && !req.query[key]) {
+          return next(new restify.InvalidArgumentError("Missing parameter '" + key + "'"));
+      }
+  }
 
   // validate args early
   var hashbuf;
@@ -136,12 +148,24 @@ exports.sign = function (req, res, next) {
           return next(err);
         }
 
-        collection.insert({ // '_id': new mongo.ObjectID(hash.substr(0, 24)),
-                         'hash': hash,
-                         'alg': algorithm,
-                         'inserted': new Date(),
-                         'sig': new mongo.Binary(sig.getContent())
-                     }, {safe:true}, function(err, result) {
+        var storeObject = {
+            // '_id': new mongo.ObjectID(hash.substr(0, 24)),
+            'hash': hash,
+            'alg': algorithm,
+            'inserted': new Date(),
+            'sig': new mongo.Binary(sig.getContent())
+        };
+
+        for (var key in inputParams) {
+          var field = inputParams[key]['databaseField'];
+          if (field) {
+            storeObject[field] = req.query[key] || inputParams[key]['default'];
+            if (Object.prototype.toString.call(storeObject[field]) == '[object String]')
+              storeObject[field] = storeObject[field].replace('$', '\uff04').replace('.', '\uff0e');
+          }
+        }
+
+        collection.insert(storeObject, {safe:true}, function(err, result) {
           if (err) {
             err.message = 'Error saving hash: ' + err.message;
             return next(err);
@@ -155,3 +179,50 @@ exports.sign = function (req, res, next) {
     });
   });
 };
+
+exports.param = function (req, res, next) {
+  var hash = req.params.hash;
+
+  if (req.header('Accept', '').match(/octet-stream/i))
+    return next(new restify.NotAcceptableError('This service does not serve application/octet-stream'));
+
+  // validate args early
+  try {
+    var hashbuf = new Buffer(hash, 'hex');
+  } catch(e) {
+    return next(new restify.InvalidArgumentError("Invalid hex 'hash'"));
+  }
+
+
+  db.collection('ksdbjs', function(err, collection) {
+    collection.findOne({'hash': hash}, function(err, item) {
+      if (err)
+        return next(err);
+
+      if (item === null) {
+        return next(new restify.ResourceNotFoundError('Unknown hash'));
+      }
+
+      var props = {};
+      var propsCount = 0;
+      for (var key in inputParams) {
+        if (inputParams[key]['retrievable']) {
+          if (!item[inputParams[key]['databaseField']]) {
+            return next(new restify.InternalError("Param '" + key + "' missing for hash"));
+          }
+
+          props[key] = item[inputParams[key]['databaseField']];
+          propsCount++;
+        }
+      }
+
+      if (propsCount === 0) {
+        return next(new restify.InvalidArgumentError("No parameters defined!"));
+      }
+
+      res.send(props);
+      return next();
+    });
+  });
+};
+

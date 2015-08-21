@@ -1,4 +1,5 @@
-- allow to store metadata with signature token (like app id)
+- documentation for metadata api
+- redesign metadata API
 - list of newspaper publications in xml format gets concatenated. Want proper list.
 - retention policy
 - cleanup old signatures according to the retention policy
