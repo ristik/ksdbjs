@@ -1,21 +1,25 @@
 {
 	"name": "ksdbjs",
 	"description": "Keyless Signature Database with RESTish Web Interface",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"author": "Risto Laanoja <ristik@gmail.com>",
 	"homepage": "http://ristik.github.com/ksdbjs",
-	"license": "Apache License v2.0",
+	"repository": {
+		"type" : "git",
+		"url" : "https://github.com/ristik/ksdbjs.git"
+	},
+	"license": "Apache-2.0",
 	"main": "main.js",
 	"dependencies": {
-		"restify": "*",
-		"bunyan": "*",
-		"guardtime": "*",
-		"mongodb": "*",
-		"xml2js": "*",
-		"jsontoxml": "*"
+		"restify": "^3.0.3",
+		"bunyan": "^1.3.4",
+		"guardtime": "^0.1.4",
+		"mongodb": "^2.0.42",
+		"xml2js": "^0.4.10",
+		"jsontoxml": "^0.0.11"
 	},
 	"engines": {
-		"node": ">=0.6"
+		"node": ">=0.8"
 	},
 	"devDependencies": {}
 }
